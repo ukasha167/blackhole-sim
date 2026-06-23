@@ -15,14 +15,20 @@ void Solver::update(double dt) {
 
     // Orbit in the X-Y plane (equator).
     // Kerr metric dictates spin is around the Z-axis.
-    constexpr float orbitRadius = 15.0f;
+    // constexpr float orbitRadius = 15.0f;
+    // constexpr float angle = 0.0f;
     constexpr float orbitSpeed  = 0.1f; // rad/sec
-    const float angle = 0.0f;
-    // const float angle = static_cast<float>(elapsedTime_) * orbitSpeed;
+    const float angle = static_cast<float>(elapsedTime_) * orbitSpeed;
 
     // Micro-offset on Y and slight Z elevation to avoid theta=0 singularity
-    camera_.position = glm::vec3(orbitRadius * std::cos(angle),
-                                 0.001f + orbitRadius * std::sin(angle),
+    // camera_.position = glm::vec3(
+    //     orbitRadius * std::cos(angle),
+    //     orbitRadius * std::sin(angle),
+    //     1.5f
+    // );
+
+    camera_.position = glm::vec3(15.0f * std::cos(angle),
+                                 15.0f * std::sin(angle),
                                  1.5f);
 
     // Explicitly set Z as the UP vector (0, 0, 1)
