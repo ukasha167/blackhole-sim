@@ -1,20 +1,31 @@
-#ifndef DEFINES_H
-#define DEFINES_H
+#pragma once
 
 #include <cstdint>
+#include <numbers>
 
-// A LITTLE NOTE FOR EVERYONE
-// LIMIT OF 1 BYTE:  uint8_t  = 0 - 255 (INCLUSIVE)
-// LIMIT OF 2 BYTES: uint16_t = 0 - 65,535 (INCLUSIVE)
-// LIMIT OF 4 BYTES: uint32_t = 0 - 4,294,967,295 (INCLUSIVE)
-// LIMIT OF 8 BYTES: uint64_t = 0 - 18,446,744,073,709,551,615 (INCLUSIVE)
+namespace bhs {
 
-// SIMULATION PARAMETERS | MODIFY WITH CARE | Chhu lo, magar pyar sy :)
-// WHAT I MEAN IS, BEFORE CHANGING ANY VALUE, RE-CHECK THE DATA TYPE OF THAT VARIABLE AND ALL OTHER VARIABLES THAT DEPEND ON THAT
-// OTHERWISE SIMULATION WILL JUST CRASH, OR BEHAVE ABNORMALLY
+inline constexpr int         kWindowWidth  = 1280;
+inline constexpr int         kWindowHeight = 800;
+inline constexpr const char* kWindowTitle  = "Still Second to HER EYES.";
 
-// WINDOW RELATED
-constexpr uint16_t SCREEN_WIDTH = 1465;
-constexpr uint16_t SCREEN_HEIGHT = 785;
+inline constexpr int    kTargetFPS       = 60;
+inline constexpr double kTargetFrameTime = 1.0 / kTargetFPS;
+inline constexpr double kMaxFrameTime    = 1.0 / 30.0; // clamp dt on hitches/debugger pauses
 
-#endif
+// --- Kerr metric (geometric units, G = c = 1) ---
+inline constexpr double kBlackHoleMass = 1.0;
+inline constexpr double kSpinParameter = 0.6;          // a / M, in [-1, 1]
+inline constexpr double kPi            = std::numbers::pi;
+
+// --- Integration: heuristic adaptive RK4, NOT embedded RK45.
+// See architecture notes: true RK45's stage count + divergent per-thread
+// step counts kill SIMD-group occupancy on Apple GPUs at this fidelity.
+inline constexpr double kMinStepSize          = 1.0e-4;
+inline constexpr double kMaxStepSize          = 0.5;
+inline constexpr int    kMaxGeodesicSteps     = 512;   // hard ceiling: bounds worst-case ALU/pixel
+
+inline constexpr uint32_t kThreadGroupSizeX = 16;
+inline constexpr uint32_t kThreadGroupSizeY = 16;
+
+}
