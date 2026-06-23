@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <algorithm>
+#include <cstdio>
 
 #include "defines.hpp"
 #include "renderer.hpp"
@@ -25,6 +26,9 @@ int main(int /*argc*/, char* /*argv*/[]) {
     bool running = true;
     uint64_t lastTicks = SDL_GetTicksNS();
 
+    double fpsTimer = 0.0;
+    int frameCount = 0;
+
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -38,7 +42,33 @@ int main(int /*argc*/, char* /*argv*/[]) {
         dt = std::min(dt, bhs::kMaxFrameTime);
 
         solver.update(dt);
-        renderer.renderFrame(solver.cameraState(), solver.diskState(), solver.elapsedTime());
+
+        renderer.renderFrame(
+            solver.cameraState(),
+            solver.diskState(),
+            solver.elapsedTime()
+        );
+
+        fpsTimer += dt;
+        frameCount++;
+
+        if (fpsTimer >= 1.0) {
+            double fps = frameCount / fpsTimer;
+
+            char title[256];
+            std::snprintf(
+                title,
+                sizeof(title),
+                "%s | FPS: %.1f",
+                bhs::kWindowTitle,
+                fps
+            );
+
+            SDL_SetWindowTitle(renderer.window(), title);
+
+            fpsTimer = 0.0;
+            frameCount = 0;
+        }
     }
 
     renderer.shutdown();
