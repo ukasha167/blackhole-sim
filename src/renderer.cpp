@@ -162,7 +162,8 @@ void Renderer::renderFrame(const CameraState& camera, const DiskState& disk, dou
     uniforms.diskParams   = glm::vec4(disk.innerRadius, disk.outerRadius, disk.spin, 0.0f);
     uniforms.renderParams = glm::vec4(static_cast<float>(renderWidth_),
                                        static_cast<float>(renderHeight_),
-                                       static_cast<float>(elapsedTime), 0.0f);
+                                       static_cast<float>(elapsedTime),
+                                       static_cast<float>(kBlackHoleMass));
 
     SDL_PushGPUComputeUniformData(cmdbuf, /*slot_index=*/0, &uniforms, sizeof(uniforms));
 
