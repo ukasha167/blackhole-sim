@@ -12,7 +12,7 @@ constant float kStepCoefficient = 0.15;
 constant float kMinStepSize     = 1.0e-4;
 constant float kMaxStepSize     = 0.5;
 constant int   kMaxSteps        = 512;
-constant float kCaptureEpsilon  = 0.01;
+constant float kCaptureEpsilon  = 0.05;
 constant float kEscapeRadius    = 60.0;
 
 float hash13(float3 p) {
@@ -124,11 +124,6 @@ float3 traceGeodesic(float3 origin, float3 dir, float a, float M, float innerR, 
     float rSign     = sign(s0.pr);
     float thetaSign = sign(s0.ptheta);
 
-    // Optimized Doppler Beaming Proxy
-    // Approaching side emits negative L photons, receding side emits positive L.
-    float dopplerShift = 1.0 - 0.12 * c.L;
-    float beaming = pow(max(dopplerShift, 0.05), 3.0);
-
     float3 accumColor = float3(0.0);
     float opacity = 0.0;
 
@@ -136,10 +131,20 @@ float3 traceGeodesic(float3 origin, float3 dir, float a, float M, float innerR, 
         float h = clamp(kStepCoefficient * (r - horizonR), kMinStepSize, kMaxStepSize);
         float rBefore = r, thetaBefore = theta;
 
+        float keplerSpeed = 1.0 / sqrt(max(r, innerR));   // crude v(r) ~ r^-1/2 proxy
+        float dopplerShift = 1.0 - 0.12 * c.L * keplerSpeed;
+        float beaming = pow(max(dopplerShift, 0.05), 3.0);
+
         rk4Step(r, theta, phi, t, a, c, rSign, thetaSign, h);
 
-        if (computeR(r, a, c) < 0.0)         rSign = -sign(r - rBefore);
-        if (computeTheta(theta, a, c) < 0.0) thetaSign = -sign(theta - thetaBefore);
+        if (computeR(r, a, c) < 0.0) {
+            r = rBefore;
+            rSign = -rSign;
+        }
+        if (computeTheta(theta, a, c) < 0.0) {
+            theta = thetaBefore;
+            thetaSign = -thetaSign;
+        }
 
         // Capture
         if (r <= horizonR + kCaptureEpsilon) {
@@ -162,9 +167,12 @@ float3 traceGeodesic(float3 origin, float3 dir, float a, float M, float innerR, 
             float3 emission = gasColor * density * beaming * h;
             accumColor += emission * (1.0 - opacity);
             opacity += density * h * 0.4;
+
+            if (opacity >= 0.999) {
+                return accumColor;
+            }
         }
 
-        // Escape
         if (r >= kEscapeRadius) {
             float sinTh = sin(theta);
             float3 rHat = float3(sinTh * cos(phi), sinTh * sin(phi), cos(theta));
