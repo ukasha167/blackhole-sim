@@ -7,7 +7,7 @@ namespace bhs {
 
 inline constexpr int         kWindowWidth  = 1280;
 inline constexpr int         kWindowHeight = 800;
-inline constexpr const char* kWindowTitle  = "Still Second to HER EYES.";
+inline constexpr const char* kWindowTitle  = "Still Second to HER EYES. ";
 
 inline constexpr int    kTargetFPS       = 60;
 inline constexpr double kTargetFrameTime = 1.0 / kTargetFPS;
