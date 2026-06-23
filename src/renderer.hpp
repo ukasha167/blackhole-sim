@@ -11,6 +11,7 @@ class Renderer {
 public:
     bool init(const char* title, int width, int height);
     void renderFrame(const CameraState& camera, const DiskState& disk, double elapsedTime);
+    SDL_Window* window() const { return window_; }
     void shutdown();
 
 private:
