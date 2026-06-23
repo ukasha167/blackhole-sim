@@ -1,86 +1,64 @@
-cmake_minimum_required(VERSION 3.24)
-project(main CXX)
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-cmake_policy(SET CMP0135 NEW)
-
-# 1. FORCE TRUE RELEASE MODE WITH OPTIMIZATION FIELDS
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
+cmake_minimum_required(VERSION 3.28)
+project(main LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# 2. GLOBAL INTERPROCEDURAL OPTIMIZATION (LINK-TIME OPTIMIZATION / LTO)
-# This enables aggressive cross-file inlining for both your code and Raylib.
-include(CheckIPOSupported)
-check_ipo_supported(RESULT lto_supported OUTPUT lto_error)
-if(lto_supported)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-    message(STATUS "Link-Time Optimization (LTO) enabled successfully.")
-else()
-    message(STATUS "LTO not supported: ${lto_error}")
+if(NOT APPLE)
+    message(FATAL_ERROR "This project targets Apple Silicon (Metal) exclusively.")
 endif()
 
-# 3. COMPILER OPTIONS FOR PERFORMANCE, ACCURACY, AND STABILITY
-if(MSVC)
-    # Windows Architecture Optimizations
-    add_compile_options(/O2 /Oi /Ot /fp:precise)
-else()
-    # macOS (Apple Clang) / Linux (GCC) Optimizations
-    # -O3: Maximum standard optimizations (loop unrolling, auto-vectorization)
-    # -fno-math-errno: Disables setting global errno on math functions (massive speedup for sqrt/pow)
-    # -fno-trapping-math: Assumes math operations won't cause hardware traps
-    add_compile_options(-O3 -fno-math-errno -fno-trapping-math)
-
-    # Fused Multiply-Add (FMA): High performance AND higher mathematical precision
-    add_compile_options(-ffp-contract=fast)
-
-    if(APPLE)
-        # Target Apple Silicon Pipeline explicitly
-        add_compile_options(-mcpu=apple-m1 -m64)
-    else()
-        # Non-Apple Unix
-        add_compile_options(-march=native)
-    endif()
-
-    # STABILITY: Enable strict warnings to catch implicit double->float precision losses
-    add_compile_options(-Wall -Wextra -Wconversion -Wno-sign-conversion)
-endif()
-
-# 4. FETCH AND BUILD RAYLIB
+# --- Dependencies ---
 include(FetchContent)
 
-set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(BUILD_GAMES    OFF CACHE BOOL "" FORCE)
-set(FETCHCONTENT_QUIET TRUE)
+# Pin to a real tag once you've verified SDL_GPU's Metal backend is stable
+# enough for your needs on this SDL version. Don't track a moving branch.
+FetchContent_Declare(
+    SDL3
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+    GIT_TAG release-3.2.10
+)
+FetchContent_MakeAvailable(SDL3)
 
 FetchContent_Declare(
-    raylib
-    GIT_REPOSITORY https://github.com/raysan5/raylib.git
-    GIT_TAG        5.0
-    GIT_PROGRESS   TRUE
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+)
+FetchContent_MakeAvailable(glm)
+
+# --- Executable ---
+add_executable(BlackHoleSim
+    src/main.cpp
+    src/renderer.cpp
+    src/solver.cpp
 )
 
-FetchContent_MakeAvailable(raylib)
+target_include_directories(BlackHoleSim PRIVATE src)
+target_link_libraries(BlackHoleSim PRIVATE SDL3::SDL3 glm::glm)
+target_compile_options(BlackHoleSim PRIVATE -Wall -Wextra -Wpedantic)
 
-# 5. SOURCE MANAGMENT & TARGET CONFIGURATION
-file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp")
-set(PROJECT_INCLUDE "${CMAKE_CURRENT_LIST_DIR}/src/")
+# --- Native Metal shader compilation ---
+# Deliberately NOT using SDL_shadercross / glslc here. We are Metal-only,
+# so we write MSL directly and skip the cross-compiler entirely:
+#   xcrun metal     : .metal -> .air   (intermediate representation)
+#   xcrun metallib  : .air   -> .metallib (what SDL_GPU_SHADERFORMAT_METALLIB loads)
+set(SHADER_SRC ${CMAKE_SOURCE_DIR}/src/shaders/geodesic.metal)
+set(SHADER_AIR ${CMAKE_BINARY_DIR}/geodesic.air)
+set(SHADER_LIB ${CMAKE_BINARY_DIR}/assets/geodesic.metallib)
 
-add_executable(${PROJECT_NAME})
-target_sources(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_INCLUDE})
-target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
+add_custom_command(
+    OUTPUT ${SHADER_LIB}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/assets
+    COMMAND xcrun -sdk macosx metal -c ${SHADER_SRC} -o ${SHADER_AIR} -std=metal3.1 -O3
+    COMMAND xcrun -sdk macosx metallib ${SHADER_AIR} -o ${SHADER_LIB}
+    DEPENDS ${SHADER_SRC}
+    COMMENT "Compiling geodesic.metal -> geodesic.metallib"
+    VERBATIM
+)
 
-# 6. MACOS SPECIFIC GRAPHICS BINDINGS (STABILITY FIX)
-if(APPLE)
-    target_link_libraries(${PROJECT_NAME} PRIVATE
-        "-framework OpenGL"
-        "-framework Cocoa"
-        "-framework IOKit"
-        "-framework CoreVideo"
-    )
-endif()
+add_custom_target(Shaders DEPENDS ${SHADER_LIB})
+add_dependencies(BlackHoleSim Shaders)
+
+file(COPY ${CMAKE_SOURCE_DIR}/assets/ DESTINATION ${CMAKE_BINARY_DIR}/assets/)
