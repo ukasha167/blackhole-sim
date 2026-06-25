@@ -1,3 +1,5 @@
+// renderer.cpp
+
 #include "renderer.hpp"
 #include "solver.hpp"
 #include "gpu_types.hpp"
@@ -24,11 +26,9 @@ std::vector<Uint8> loadFile(const char* path) {
     file.read(reinterpret_cast<char*>(buffer.data()), size);
     return buffer;
 }
-
-} // namespace
+}
 
 bool Renderer::createGPUDevice() {
-    // VERIFY against your installed SDL3 headers - this whole function.
     device_ = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_METALLIB, /*debug_mode=*/true, nullptr);
     if (!device_) {
         SDL_Log("SDL_CreateGPUDevice failed: %s", SDL_GetError());
@@ -48,7 +48,6 @@ bool Renderer::createComputePipeline() {
         return false;
     }
 
-    // VERIFY: exact field names/order in SDL_GPUComputePipelineCreateInfo.
     SDL_GPUComputePipelineCreateInfo info{};
     info.code                            = shaderBytes.data();
     info.code_size                       = shaderBytes.size();
@@ -57,9 +56,9 @@ bool Renderer::createComputePipeline() {
     info.num_samplers                    = 0;
     info.num_readonly_storage_textures   = 0;
     info.num_readonly_storage_buffers    = 0;
-    info.num_readwrite_storage_textures  = 1; // our render target
+    info.num_readwrite_storage_textures  = 1;
     info.num_readwrite_storage_buffers   = 0;
-    info.num_uniform_buffers             = 1; // FrameUniforms
+    info.num_uniform_buffers             = 1;
     info.threadcount_x = kThreadGroupSizeX;
     info.threadcount_y = kThreadGroupSizeY;
     info.threadcount_z = 1;
@@ -120,9 +119,6 @@ bool Renderer::init(const char* title, int width, int height) {
 }
 
 void Renderer::updateDynamicResolution(double lastFrameSeconds) {
-    // Asymmetric step sizes deliberately: scale down fast (protect the
-    // frame budget now), scale up slowly (avoid visible resolution
-    // "pumping" every time you cross the threshold by a hair).
     constexpr double kBudget = kTargetFrameTime;
     if (lastFrameSeconds > kBudget * 1.1) {
         renderScale_ = std::max(kMinRenderScale, renderScale_ - 0.05f);
@@ -152,7 +148,7 @@ void Renderer::renderFrame(const CameraState& camera, const DiskState& disk, dou
         return;
     }
     if (!swapchainTexture) {
-        SDL_SubmitGPUCommandBuffer(cmdbuf); // minimized window, etc.
+        SDL_SubmitGPUCommandBuffer(cmdbuf);
         return;
     }
 
@@ -165,9 +161,8 @@ void Renderer::renderFrame(const CameraState& camera, const DiskState& disk, dou
                                        static_cast<float>(elapsedTime),
                                        static_cast<float>(kBlackHoleMass));
 
-    SDL_PushGPUComputeUniformData(cmdbuf, /*slot_index=*/0, &uniforms, sizeof(uniforms));
+    SDL_PushGPUComputeUniformData(cmdbuf,0, &uniforms, sizeof(uniforms));
 
-    // VERIFY: SDL_GPUStorageTextureReadWriteBinding field names.
     SDL_GPUStorageTextureReadWriteBinding writeBinding{};
     writeBinding.texture   = renderTarget_;
     writeBinding.mip_level = 0;
@@ -182,9 +177,6 @@ void Renderer::renderFrame(const CameraState& camera, const DiskState& disk, dou
     SDL_DispatchGPUCompute(pass, groupsX, groupsY, 1);
     SDL_EndGPUComputePass(pass);
 
-    // Blit handles both the present AND the dynamic-resolution upscale in
-    // one operation - we're always blit-scaling, scale=1.0 included, so
-    // dynamic res costs nothing extra architecturally.
     SDL_GPUBlitInfo blit{};
     blit.source.texture      = renderTarget_;
     blit.source.w            = static_cast<Uint32>(renderWidth_);
@@ -207,4 +199,4 @@ void Renderer::shutdown() {
     if (window_) SDL_DestroyWindow(window_);
 }
 
-} // namespace bhs
+}
